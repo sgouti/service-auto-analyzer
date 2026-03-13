@@ -91,7 +91,17 @@
 
 ## Runtime asset management
 
-The Docker image now bakes semantic model assets during build via `app/ml/bake_models.py`. Set `HF_TOKEN` if the target Hugging Face repositories require authentication.
+The default Docker image no longer bakes semantic model assets into the image. This keeps the image size significantly smaller for development and CI builds.
+
+The Docker build now also separates runtime, build-only, and test-only Python dependencies. Runtime installs come from `requirements/base.txt`, while build-only tools live in `requirements/build.txt` and test-only tools live in `requirements/test.txt`.
+
+To build an offline image with the semantic model assets embedded, pass `BAKE_MODELS=true` during the Docker build. Set `HF_TOKEN` if the target Hugging Face repositories require authentication.
+
+```bash
+docker build --build-arg BAKE_MODELS=true --build-arg HF_TOKEN=$HF_TOKEN -t reportportal/service-auto-analyzer:offline .
+```
+
+When model assets are not baked in, the runtime keeps working and falls back to the hashing-based semantic implementation if local ONNX assets are unavailable.
 
 To backfill existing OpenSearch documents with semantic vectors and flaky metadata, run:
 
@@ -101,7 +111,7 @@ AA_BACKFILL_PROJECTS=1,2,3 python app/ml/backfill_runtime_fields.py
 
 ## Instructions for analyzer setup without Docker
 
-Install Python 3.11 for local development. The production image now targets UBI8 with Python 3.11.
+Install Python 3.11 for local development. The production image now targets `python:3.11-slim-bookworm` with a multi-stage Docker build.
 
 Perform next steps inside source directory of the analyzer.
 
