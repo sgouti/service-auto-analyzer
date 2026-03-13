@@ -70,11 +70,38 @@
 | PROB_CUSTOM_MODEL_SUGGESTIONS   | float    | 0.7               | the probability of custom retrained model to be used for running when suggestions are requested. The maximum value is 0.8, because we want at least 20% of requests to process with a global model not to overfit for project too much. The bigger the value of this env variable the more often custom retrained model will be used.                                                                                                                                                                  |
 | PROB_CUSTOM_MODEL_AUTO_ANALYSIS | float    | 0.5               | the probability of custom retrained model to be used for running when auto-analysis is performed. The maximum value is 1.0. The bigger the value of this env variable the more often custom retrained model will be used.                                                                                                                                                                                                                                                                              |
 | MAX_SUGGESTIONS_NUMBER          | integer  | 3                 | the maximum number of suggestions shown in the ML suggestions area in the defect type editor.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ML_MODEL_FOR_SUGGESTIONS        | string   | suggestion        | the name of the model to use for suggestions. Possible values are: suggestion, auto_analysis, similarity. Use this property if you want to change what and how the Analyzer suggests you in "Make Decision" modal window. By default Analyzer uses it's own model named "suggestion", but it can also use the same model as for auto-analysis, which suggests unique issue types only, or text similarity model which provide results by fields' similarity only (cousin similarity by tf-idf matrix). |
+| ML_MODEL_FOR_SUGGESTIONS        | string   | suggestion        | the name of the model to use for suggestions. Possible values are: suggestion, auto_analysis, similarity. Use this property if you want to change what and how the Analyzer suggests you in "Make Decision" modal window. By default Analyzer uses it's own model named "suggestion", but it can also use the same model as for auto-analysis, which suggests unique issue types only, or text similarity model which provides results by semantic field similarity. |
+
+## Semantic runtime flags
+
+| **Property name**          | **Default value**                | **Description** |
+|---------------------------|----------------------------------|-----------------|
+| AA_ENABLE_BGE_M3          | true                             | Enables dense semantic embeddings for similarity, indexing, and defect-type training. |
+| AA_ENABLE_HYBRID_RETRIEVAL| true                             | Enables BM25 plus dense reciprocal-rank-fusion candidate ranking. |
+| AA_ENABLE_RERANKER        | true                             | Enables the ONNX reranker on top candidates. The default baked model is `BAAI/bge-reranker-base`. |
+| AA_ENABLE_LIGHTGBM        | true                             | Uses LightGBM for suggestion and auto-analysis retraining. |
+| AA_ENABLE_OPTUNA          | true                             | Runs Optuna tuning when validation F1 falls below the configured threshold. |
+| AA_ENABLE_FLAKY_DETECTION | true                             | Computes `flaky_score` and `is_quarantined` during indexing and defect updates. |
+| AA_ENABLE_ASYNC_PIPELINE  | true                             | Runs hybrid ranking through the bounded async executor with timeout fallback. |
+| AA_BGE_M3_MODEL_PATH      | `res/model/runtime/bge-m3`       | Local embedder directory baked into the image. |
+| AA_BGE_RERANKER_MODEL_PATH| `res/model/runtime/bge-reranker-base` | Local reranker directory baked into the image. |
+| AA_OPTUNA_MIN_F1          | 0.80                             | Minimum mean F1 before Optuna tuning is triggered. |
+| AA_OPTUNA_MAX_TRIALS      | 15                               | Maximum Optuna trials for LightGBM tuning. |
+| AA_FLAKY_THRESHOLD        | 75                               | Quarantine threshold for flaky score. |
+
+## Runtime asset management
+
+The Docker image now bakes semantic model assets during build via `app/ml/bake_models.py`. Set `HF_TOKEN` if the target Hugging Face repositories require authentication.
+
+To backfill existing OpenSearch documents with semantic vectors and flaky metadata, run:
+
+```bash
+AA_BACKFILL_PROJECTS=1,2,3 python app/ml/backfill_runtime_fields.py
+```
 
 ## Instructions for analyzer setup without Docker
 
-Install python with the version 3.7.4. (it is the version on which the service was developed, but it should work on the versions starting from 3.6).
+Install Python 3.11 for local development. The production image now targets UBI8 with Python 3.11.
 
 Perform next steps inside source directory of the analyzer.
 

@@ -68,6 +68,8 @@ class LogData(BaseModel):
     paths: Optional[str] = Field(default=None, description="File paths found in message")
     message_params: Optional[str] = Field(default=None, description="Extracted parameters")
     whole_message: Optional[str] = Field(default=None, description="Combined exception message and stacktrace")
+    semantic_vector: Optional[list[float]] = Field(default=None, description="Semantic vector for hybrid retrieval")
+    semantic_vector_model: Optional[str] = Field(default=None, description="Semantic embedding model identifier")
 
 
 class LogClusterData(BaseModel):
@@ -139,6 +141,10 @@ class TestItemIndexData(BaseModel):
     log_count: Optional[int] = Field(default=None, description="Number of logs in this Test Item")
     logs: Optional[list[LogData]] = Field(default=None, description="Nested log entries")
     issue_history: Optional[list[TestItemHistoryData]] = Field(default=None, description="Nested issue type history")
+    semantic_vector: Optional[list[float]] = Field(default=None, description="Aggregated semantic vector")
+    semantic_vector_model: Optional[str] = Field(default=None, description="Semantic embedding model identifier")
+    flaky_score: Optional[int] = Field(default=0, description="Flakiness score in range 0..100")
+    is_quarantined: Optional[bool] = Field(default=False, description="Whether the item is quarantined")
 
     def to_index_dict(self) -> dict[str, Any]:
         """

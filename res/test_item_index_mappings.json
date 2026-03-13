@@ -31,6 +31,24 @@
       "type": "date",
       "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"
     },
+    "semantic_vector": {
+      "type": "knn_vector",
+      "dimension": 1024,
+      "method": {
+        "name": "hnsw",
+        "space_type": "cosinesimil",
+        "engine": "lucene"
+      }
+    },
+    "semantic_vector_model": {
+      "type": "keyword"
+    },
+    "flaky_score": {
+      "type": "integer"
+    },
+    "is_quarantined": {
+      "type": "boolean"
+    },
     "log_count": {
       "type": "integer"
     },
@@ -154,6 +172,18 @@
         "whole_message": {
           "type": "text",
           "analyzer": "standard_english_analyzer"
+        },
+        "semantic_vector": {
+          "type": "knn_vector",
+          "dimension": 1024,
+          "method": {
+            "name": "hnsw",
+            "space_type": "cosinesimil",
+            "engine": "lucene"
+          }
+        },
+        "semantic_vector_model": {
+          "type": "keyword"
         }
       }
     },

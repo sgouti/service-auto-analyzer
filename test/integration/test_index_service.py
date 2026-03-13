@@ -104,7 +104,7 @@ def test_defect_update_updates_issue_history_and_docs() -> None:
 
     os_client.get_test_items_by_ids.assert_called_once_with(123, ["1001", "1002", "9999"])
 
-    project_id, doc_updates = os_client.bulk_update_issue_history.call_args[0]
+    project_id, doc_updates, _flaky_scores = os_client.bulk_update_issue_history.call_args[0]
     assert project_id == 123
     assert len(doc_updates) == 2
     doc_ids = {doc.test_item_id for doc in doc_updates}

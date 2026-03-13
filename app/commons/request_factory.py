@@ -17,8 +17,12 @@
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
+
 from app.commons.model.launch_objects import ERROR_LOGGING_LEVEL, Launch, Log
 from app.commons.model.test_item_index import LogData, TestItemIndexData
+from app.ml.runtime_settings import get_runtime_settings
+from app.ml.semantic_runtime import get_semantic_runtime
 from app.commons.prepared_log import PreparedLogMessage
 from app.utils import text_processing, utils
 from app.utils.log_preparation import unify_message
@@ -112,6 +116,13 @@ def _prepare_log_data(log: Log, log_order: int, number_of_lines: int) -> LogData
         text_fields[field_name] = text_processing.clean_colon_stacking(text_fields[field_name])
 
     whole_message = "\n".join([text_fields["detected_message_without_params_and_brackets"], text_fields["stacktrace"]])
+    runtime_settings = get_runtime_settings()
+    semantic_vector = None
+    semantic_vector_model = None
+    if runtime_settings.enable_semantic_embedding and whole_message.strip():
+        runtime = get_semantic_runtime(runtime_settings)
+        semantic_vector = runtime.embed_texts([whole_message])[0].tolist()
+        semantic_vector_model = runtime_settings.semantic_embedder_model_id
 
     return LogData(
         log_id=str(log.logId),
@@ -145,6 +156,8 @@ def _prepare_log_data(log: Log, log_order: int, number_of_lines: int) -> LogData
         paths=paths,
         message_params=message_params,
         whole_message=whole_message,
+        semantic_vector=semantic_vector,
+        semantic_vector_model=semantic_vector_model,
     )
 
 
@@ -186,6 +199,18 @@ def prepare_test_items(
             log_data = _prepare_log_data(logs[log_idx], log_order, number_of_lines)
             prepared_logs.append(log_data)
 
+        runtime_settings = get_runtime_settings()
+        semantic_vector = None
+        semantic_vector_model = None
+        if runtime_settings.enable_semantic_embedding and prepared_logs:
+            log_vectors = [
+                np.asarray(log.semantic_vector, dtype=np.float32)
+                for log in prepared_logs if log.semantic_vector
+            ]
+            if log_vectors:
+                semantic_vector = np.mean(log_vectors, axis=0).tolist()
+                semantic_vector_model = runtime_settings.semantic_embedder_model_id
+
         results.append(
             TestItemIndexData(
                 test_item_id=str(test_item.testItemId),
@@ -202,6 +227,10 @@ def prepare_test_items(
                 log_count=len(prepared_logs),
                 logs=prepared_logs,
                 issue_history=[],
+                semantic_vector=semantic_vector,
+                semantic_vector_model=semantic_vector_model,
+                flaky_score=0,
+                is_quarantined=False,
             )
         )
     return results

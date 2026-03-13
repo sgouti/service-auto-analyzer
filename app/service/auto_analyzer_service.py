@@ -36,6 +36,9 @@ from app.commons.model_chooser import ModelChooser
 from app.commons.namespace_finder import NamespaceFinder
 from app.commons.os_client import OsClient
 from app.ml.predictor import AutoAnalysisPredictor
+from app.ml.hybrid_ranking import HybridRankingPipeline
+from app.ml.pipeline_executor import execute_with_timeout
+from app.ml.runtime_settings import MlRuntimeSettings
 from app.service.analyzer_service import AnalyzerService
 from app.utils import utils
 from app.utils.os_migration import (
@@ -108,6 +111,7 @@ class AutoAnalyzerService(AnalyzerService):
     os_client: OsClient
     namespace_finder: NamespaceFinder
     model_chooser: ModelChooser
+    runtime_settings: MlRuntimeSettings
 
     def __init__(
         self,
@@ -121,6 +125,7 @@ class AutoAnalyzerService(AnalyzerService):
         self.app_config = app_config
         self.os_client = os_client or OsClient(app_config=self.app_config)
         self.namespace_finder = NamespaceFinder(app_config)
+        self.runtime_settings = MlRuntimeSettings.from_app_config(app_config)
 
     def _get_config_for_boosting(self, analyzer_config: AnalyzerConf) -> dict[str, Any]:
         min_should_match = self.find_min_should_match_threshold(analyzer_config) / 100
@@ -276,7 +281,14 @@ class AutoAnalyzerService(AnalyzerService):
             return []
 
         buckets = bucket_sort_logs_by_similarity(query_request_logs, found_log_hits)
-        return build_search_results(query_request_logs, buckets)
+        search_results = build_search_results(query_request_logs, buckets)
+        pipeline = HybridRankingPipeline(self.runtime_settings)
+        return execute_with_timeout(
+            search_results,
+            pipeline.rank_hits,
+            timeout_seconds=self.runtime_settings.ml_pipeline_timeout_seconds,
+            enabled=self.runtime_settings.enable_async_ml_pipeline and self.runtime_settings.enable_hybrid_retrieval,
+        )
 
     def _should_stop_processing(self, test_items_processed: int) -> bool:
         if test_items_processed >= self.search_cfg.MaxAutoAnalysisItemsToProcess:

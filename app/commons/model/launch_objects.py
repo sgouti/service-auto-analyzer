@@ -85,6 +85,31 @@ class ApplicationConfig(BaseModel):
     turnOffSslVerification: bool = False
     appVersion: str = ""
 
+    enableSemanticEmbedding: bool = True
+    enableHybridRetrieval: bool = True
+    enableSemanticReranker: bool = True
+    enableLightgbmClassifier: bool = True
+    enableOptunaTuning: bool = True
+    enableFlakyDetection: bool = True
+    enableAsyncMlPipeline: bool = True
+    semanticModelCacheDir: str = "res/model/runtime"
+    semanticEmbedderModelId: str = "BAAI/bge-m3"
+    semanticRerankerModelId: str = "BAAI/bge-reranker-base"
+    semanticEmbedderModelPath: str = "res/model/runtime/bge-m3"
+    semanticRerankerModelPath: str = "res/model/runtime/bge-reranker-base"
+    semanticEmbedderModelFile: str = "onnx/model.onnx"
+    semanticRerankerModelFile: str = "onnx/model.onnx"
+    hybridRrfK: int = 60
+    hybridCandidatePoolSize: int = 50
+    rerankerCandidateWindow: int = 30
+    rerankerResultWindow: int = 10
+    mlPipelineTimeoutSeconds: int = 5
+    semanticEmbeddingBatchSize: int = 32
+    optunaMaxTrials: int = 15
+    optunaMinF1Score: float = 0.80
+    flakyQuarantineThreshold: int = 75
+    semanticVectorDimension: int = 1024
+
     datastoreEndpoint: str | None = None
     datastoreType: str = "filesystem"
     datastoreAccessKey: str | None = None
@@ -127,6 +152,7 @@ class SearchConfig(BaseModel):
     AutoBoostModelNumEstimators: int = 50
     AutoBoostModelMaxDepth: int = 5
     MlModelForSuggestions: str = ModelType.suggestion.name
+    SemanticFeatureIds: list[int] = [67, 68, 69]
 
 
 class SearchLogInfo(BaseModel):

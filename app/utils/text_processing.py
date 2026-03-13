@@ -966,14 +966,9 @@ def calculate_text_similarity(base_text: Optional[str], other_texts: list[str]) 
     if base_text is None or not other_texts:
         return []
 
-    # Preprocess the base text
     processed_base_text = " ".join(preprocess_text_for_similarity(base_text))
     base_text_is_valid = bool(processed_base_text.strip())
-
-    # Preprocess all other texts
     processed_other_texts = [" ".join(preprocess_text_for_similarity(text)) for text in other_texts]
-
-    # Handle empty texts and identical texts first
     similarity_scores: list[SimilarityResult] = []
     valid_texts = []
     valid_indices = []
@@ -981,7 +976,6 @@ def calculate_text_similarity(base_text: Optional[str], other_texts: list[str]) 
     for i, processed_other_text in enumerate(processed_other_texts):
         processed_other_text_strip = processed_other_text.strip()
         if not base_text_is_valid and not processed_other_text_strip:
-            # The next variable will be False if base texts contain only stop words
             base_both_empty = not base_text.strip() and not other_texts[i].strip()
             similarity_scores.append(
                 SimilarityResult(
@@ -990,39 +984,25 @@ def calculate_text_similarity(base_text: Optional[str], other_texts: list[str]) 
                 )
             )
         elif not base_text_is_valid or not processed_other_text_strip:
-            # If one of the texts is empty after preprocessing, append 0
             similarity_scores.append(SimilarityResult(similarity=0.0, both_empty=False))
         elif processed_base_text == processed_other_text:
-            # If both texts are identical after preprocessing, append 1
             similarity_scores.append(SimilarityResult(similarity=1.0, both_empty=False))
         else:
-            # Store valid texts for batch processing
             valid_texts.append(processed_other_text)
             valid_indices.append(i)
-            # Placeholder, will be replaced
             similarity_scores.append(SimilarityResult(similarity=0.0, both_empty=False))
 
     if not valid_texts:
         return similarity_scores
 
-    # If we have valid texts to process, use single TF-IDF vectorizer
-    # Create all texts list: base text + all valid other texts
     all_texts = [processed_base_text] + valid_texts
-
     tfidf_matrix = __calculate_tfidf_matrix(all_texts)
-
-    # Calculate cosine similarity between base text (index 0) and all other texts
-    base_vector = tfidf_matrix[0:1]  # Base text vector
-    other_vectors = tfidf_matrix[1:]  # All other text vectors
-
+    base_vector = tfidf_matrix[0:1]
+    other_vectors = tfidf_matrix[1:]
     similarity_matrix = cosine_similarity(base_vector, other_vectors)
 
-    # Update similarity scores for valid texts
     for i, valid_index in enumerate(valid_indices):
-        similarity_scores[valid_index] = SimilarityResult(
-            similarity=float(similarity_matrix[0][i]),
-            both_empty=False,
-        )
+        similarity_scores[valid_index] = SimilarityResult(similarity=float(similarity_matrix[0][i]), both_empty=False)
 
     return similarity_scores
 
@@ -1056,17 +1036,14 @@ def find_last_unique_texts(threshold: float, texts: list[str]) -> list[int]:
     if not texts:
         raise ValueError("Input texts cannot be empty")
 
-    matrix = __calculate_tfidf_matrix(texts, use_idf=True)
     result = set()
     for i in range(len(texts) - 1):
         if i in result:
             continue
-        first_vector = matrix[i]
-        other_vectors = matrix[i + 1 :]
-        similarity_vector = cosine_similarity(first_vector, other_vectors)[0]
+        similarity_vector = calculate_text_similarity(texts[i], texts[i + 1 :])
         use_index = i
-        for si, s in enumerate(similarity_vector):
-            if s >= threshold:
+        for si, similarity in enumerate(similarity_vector):
+            if similarity.similarity >= threshold:
                 use_index = i + 1 + si
         result.add(use_index)
     result.add(len(texts) - 1)

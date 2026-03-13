@@ -70,6 +70,10 @@ class LogItemIndexData(BaseModel):
     cluster_id: str = Field(default="", description="Cluster identifier")
     cluster_message: str = Field(default="", description="Cluster message")
     cluster_with_numbers: bool = Field(default=False, description="Cluster message with numbers flag")
+    semantic_vector: Optional[list[float]] = Field(default=None, description="Semantic vector for hybrid retrieval")
+    semantic_vector_model: str = Field(default="", description="Semantic embedding model identifier")
+    flaky_score: int = Field(default=0, description="Flakiness score in range 0..100")
+    is_quarantined: bool = Field(default=False, description="Whether the item is quarantined")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LogItemIndexData":

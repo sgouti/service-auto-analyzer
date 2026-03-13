@@ -14,18 +14,20 @@
 
 import re
 from collections import Counter
-from typing import Any, Optional, override
+from typing import Any, Optional
+
+from typing_extensions import override
 
 import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from app.commons import logging
 from app.commons.object_saving.object_saver import ObjectSaver
 from app.ml.models import MlModel
-from app.utils import text_processing
+from app.ml.runtime_settings import get_runtime_settings
+from app.ml.semantic_runtime import get_semantic_runtime
 from app.utils.defaultdict import DefaultDict
 
 LOGGER = logging.getLogger("analyzerApp.DefectTypeModel")
@@ -62,6 +64,27 @@ DEFAULT_MODEL = DummyClassifier()
 DEFAULT_VECTORIZER = DummyVectorizer()
 
 
+class SemanticVectorizer:
+    def __init__(self) -> None:
+        self.runtime = get_semantic_runtime(get_runtime_settings())
+
+    def fit_transform(self, data: list[str]) -> np.ndarray:
+        return self.transform(data)
+
+    def transform(self, data: list[str]) -> np.ndarray:
+        if not data:
+            return np.zeros((0, 1), dtype=np.float32)
+        vectors = self.runtime.embed_texts(data)
+        if not vectors:
+            return np.zeros((len(data), 1), dtype=np.float32)
+        return np.asarray(vectors, dtype=np.float32)
+
+    def get_feature_names_out(self) -> list[str]:
+        if self.runtime.settings.embedding_dimension <= 0:
+            return ["semantic_0"]
+        return [f"semantic_{index}" for index in range(self.runtime.settings.embedding_dimension)]
+
+
 def get_model(self: DefaultDict, model_name: str, default_value: Any) -> Any:
     m = BASE_DEFECT_TYPE_PATTERN.match(model_name)
     if not m:
@@ -85,7 +108,7 @@ def get_classifier_model(self: Any, model_name: str) -> Any:
 
 class DefectTypeModel(MlModel):
     _loaded: bool
-    count_vectorizer_models: DefaultDict[str, TfidfVectorizer | DummyVectorizer]
+    count_vectorizer_models: DefaultDict[str, Any]
     models: DefaultDict[str, RandomForestClassifier | DummyClassifier]
     n_estimators: int
 
@@ -119,9 +142,7 @@ class DefectTypeModel(MlModel):
         self._save_models(zip(MODEL_FILES, [self.count_vectorizer_models, self.models]))
 
     def train_model(self, name: str, train_data_x: list[str], labels: list[int], random_state: int) -> float:
-        self.count_vectorizer_models[name] = TfidfVectorizer(
-            binary=True, min_df=5, analyzer=text_processing.preprocess_words
-        )
+        self.count_vectorizer_models[name] = SemanticVectorizer()
         transformed_values = self.count_vectorizer_models[name].fit_transform(train_data_x)
         LOGGER.debug(f"Length of train data: {len(labels)}")
         LOGGER.debug(f"Train data label distribution: {Counter(labels)}")

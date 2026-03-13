@@ -516,7 +516,12 @@ class OsClient:
         except Exception as err:
             LOGGER.exception("Error in msearch", exc_info=err)
 
-    def bulk_update_issue_history(self, project_id: str | int, updates: list[TestItemHistoryData]) -> BulkResponse:
+    def bulk_update_issue_history(
+        self,
+        project_id: str | int,
+        updates: list[TestItemHistoryData],
+        flaky_scores: Optional[dict[str, dict[str, Any]]] = None,
+    ) -> BulkResponse:
         """Bulk update issue_history for multiple Test Items.
 
         :param project_id: The project identifier
@@ -534,6 +539,7 @@ class OsClient:
         bodies: list[dict[str, Any]] = []
         for update in updates:
             entry = update.to_update_dict()
+            flaky_state = (flaky_scores or {}).get(update.test_item_id)
             bodies.append(
                 {
                     "_op_type": "update",
@@ -547,8 +553,12 @@ class OsClient:
                                 ctx._source.issue_history = [];
                             }
                             ctx._source.issue_history.add(params.entry);
+                            if (params.flaky != null) {
+                                ctx._source.flaky_score = params.flaky.flaky_score;
+                                ctx._source.is_quarantined = params.flaky.is_quarantined;
+                            }
                         """,
-                        "params": {"entry": entry},
+                        "params": {"entry": entry, "flaky": flaky_state},
                     },
                 }
             )

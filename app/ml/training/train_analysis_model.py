@@ -33,7 +33,10 @@ from app.commons.model.test_item_index import TestItemIndexData
 from app.commons.model_chooser import ModelChooser
 from app.commons.os_client import OsClient
 from app.ml.boosting_featurizer import BoostingFeaturizer
+from app.ml.hybrid_ranking import HybridRankingPipeline
+from app.ml.pipeline_executor import execute_with_timeout
 from app.ml.models import BoostingDecisionMaker, CustomBoostingDecisionMaker, DefectTypeModel
+from app.ml.runtime_settings import MlRuntimeSettings
 from app.ml.suggest_boosting_featurizer import SuggestBoostingFeaturizer
 from app.ml.training import (
     DEFAULT_RANDOM_SEED,
@@ -99,9 +102,12 @@ def transform_data_from_feature_lists(
 def fill_metric_stats(
     baseline_model_metric_result: list[float], new_model_metric_results: list[float], info_dict: dict[str, Any]
 ) -> None:
-    _, p_value = stats.f_oneway(baseline_model_metric_result, new_model_metric_results)
-    if p_value is None or math.isnan(p_value):
+    if not baseline_model_metric_result or not new_model_metric_results:
         p_value = 1.0
+    else:
+        _, p_value = stats.f_oneway(baseline_model_metric_result, new_model_metric_results)
+        if p_value is None or math.isnan(p_value):
+            p_value = 1.0
     info_dict["p_value"] = p_value
     mean_metric = np.mean(new_model_metric_results)
     baseline_mean_metric = np.mean(baseline_model_metric_result)
@@ -341,6 +347,7 @@ class AnalysisModelTraining:
     monotonous_features: list[int]
     n_estimators: int
     max_depth: int
+    runtime_settings: MlRuntimeSettings
 
     def __init__(
         self,
@@ -359,6 +366,7 @@ class AnalysisModelTraining:
         self.due_proportion_to_smote = 0.4
         self.os_client = os_client or OsClient(app_config=app_config)
         self.model_type = model_type
+        self.runtime_settings = MlRuntimeSettings.from_app_config(app_config)
         if model_type is ModelType.suggestion:
             self.baseline_folder = self.search_cfg.SuggestBoostModelFolder
             self.features = text_processing.transform_string_feature_range_into_list(
@@ -395,6 +403,11 @@ class AnalysisModelTraining:
                 self.monotonous_features = list(self.baseline_model.monotonous_features)
         else:
             self.baseline_model = None
+
+        if self.runtime_settings.enable_semantic_embedding:
+            for feature_id in self.search_cfg.SemanticFeatureIds:
+                if feature_id not in self.features:
+                    self.features.append(feature_id)
 
         if not self.features:
             raise ValueError('No feature config found, please either correct values in "search_cfg" parameter')
@@ -594,6 +607,15 @@ class AnalysisModelTraining:
                 if not search_results:
                     continue
 
+                pipeline = HybridRankingPipeline(self.runtime_settings)
+                search_results = execute_with_timeout(
+                    search_results,
+                    pipeline.rank_hits,
+                    timeout_seconds=self.runtime_settings.ml_pipeline_timeout_seconds,
+                    enabled=self.runtime_settings.enable_async_ml_pipeline
+                    and self.runtime_settings.enable_hybrid_retrieval,
+                )
+
                 _boosting_data_gatherer: BoostingFeaturizer = self.featurizer_class(
                     search_results, self._get_config_for_boosting(-1, namespaces), feature_ids=features
                 )
@@ -673,6 +695,25 @@ class AnalysisModelTraining:
         baseline_model_results, new_model_results, bad_data, data_proportion = self._train_several_times(
             new_model, train_data, labels
         )
+
+        initial_mean_metric = float(np.mean(new_model_results.get(METRIC, [0.0])))
+        if (
+            not bad_data
+            and self.app_config.enableOptunaTuning
+            and self.app_config.enableLightgbmClassifier
+            and initial_mean_metric < self.app_config.optunaTriggerF1
+        ):
+            LOGGER.info(
+                "Initial %s score %.3f is below %.3f, running Optuna tuning",
+                METRIC,
+                initial_mean_metric,
+                self.app_config.optunaTriggerF1,
+            )
+            tuned_metric = new_model.tune_hyperparameters(train_data, labels, self.app_config.optunaTrials)
+            LOGGER.info("Optuna best validation %s score: %.3f", METRIC, tuned_metric)
+            baseline_model_results, new_model_results, bad_data, data_proportion = self._train_several_times(
+                new_model, train_data, labels
+            )
         for metric in new_model_results:
             train_log_info[metric]["data_size"] = len(labels)
             train_log_info[metric]["bad_data_proportion"] = int(bad_data)

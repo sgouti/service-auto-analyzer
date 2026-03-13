@@ -145,6 +145,9 @@ class BoostingFeaturizer:
             64: (self._calculate_decay_function_score, {"field_name": "start_time"}, []),
             65: (self._calculate_test_item_logs_similar_percent, {}, []),
             66: (self._count_test_item_logs, {}, []),
+            67: (self._calculate_semantic_similarity, {}, []),
+            68: (self._calculate_rank_field_score, {"field_name": "hybrid_rrf_score"}, []),
+            69: (self._calculate_rank_field_score, {"field_name": "rerank_score"}, []),
         }
 
         processed_results = self._perform_additional_text_processing(results)
@@ -160,7 +163,7 @@ class BoostingFeaturizer:
         self.scores_by_type = None
         self.defect_type_predict_model = None
         self.used_model_info = set()
-        self.features_to_recalculate_always = set([51, 58] + list(range(67, 74)))
+        self.features_to_recalculate_always = {51, 58, 67, 68, 69}
 
     def filter_min_should_match(
         self, processed_results: list[tuple[LogItemIndexData, list[Hit[LogItemIndexData]]]]
@@ -713,6 +716,18 @@ class BoostingFeaturizer:
             sim_obj = similarity_dict[field_name][group_id]
             similarity_percent_by_type[issue_type] = sim_obj.similarity
         return similarity_percent_by_type
+
+    def _calculate_semantic_similarity(self) -> dict[str, float]:
+        return self._calculate_similarity_percent(field_name="whole_message")
+
+    def _calculate_rank_field_score(self, field_name: str) -> dict[str, float]:
+        scores_by_issue_type = self.find_most_relevant_by_type()
+        ranking_scores: dict[str, float] = {}
+        for issue_type, search_rs in scores_by_issue_type.items():
+            mr_hit = search_rs["mrHit"]
+            fields = mr_hit.fields or {}
+            ranking_scores[issue_type] = round(float(fields.get(field_name, 0.0)), 2)
+        return ranking_scores
 
     def get_ordered_features_to_process(self) -> list[int]:
         feature_graph: dict[int, list[int]] = {}

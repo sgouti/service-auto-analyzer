@@ -14,7 +14,9 @@
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional, Union, override
+from typing import Any, Optional, Union
+
+from typing_extensions import override
 
 from app.commons import logging
 from app.commons.model.db import Hit

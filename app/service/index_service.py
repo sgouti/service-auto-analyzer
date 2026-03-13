@@ -23,6 +23,7 @@ from app.commons.model.launch_objects import ApplicationConfig, BulkResponse, De
 from app.commons.model.ml import ModelType, TrainInfo
 from app.commons.model.test_item_index import TestItemHistoryData, TestItemIndexData
 from app.commons.os_client import OsClient
+from app.ml.flaky_detector import FlakyTestDetector
 
 LOGGER = logging.getLogger("analyzerApp.indexService")
 
@@ -42,6 +43,7 @@ class IndexService:
 
     app_config: ApplicationConfig
     os_client: OsClient
+    flaky_detector: Optional[FlakyTestDetector]
 
     def __init__(self, app_config: ApplicationConfig, *, os_client: Optional[OsClient] = None):
         """Initialize IndexService
@@ -51,6 +53,22 @@ class IndexService:
         """
         self.app_config = app_config
         self.os_client = os_client or OsClient(app_config=self.app_config)
+        self.flaky_detector = (
+            FlakyTestDetector(self.app_config.flakyQuarantineThreshold)
+            if self.app_config.enableFlakyDetection
+            else None
+        )
+
+    def _apply_flaky_scores(self, test_items: list[TestItemIndexData]) -> None:
+        if not self.flaky_detector or not test_items:
+            return
+        scores = self.flaky_detector.score_items(test_items)
+        for test_item in test_items:
+            score = scores.get(test_item.test_item_id)
+            if score is None:
+                continue
+            test_item.flaky_score = score.score
+            test_item.is_quarantined = score.is_quarantined
 
     def index_logs(self, launches: list[Launch]) -> BulkResponse:
         """Index launches grouped by project using Test Item-centric documents."""
@@ -73,6 +91,7 @@ class IndexService:
                 minimal_log_level=config.minimumLogLevel,
                 similarity_threshold_to_drop=config.similarityThresholdToDrop,
             )
+            self._apply_flaky_scores(prepared_items)
             project_test_items[launch.project].extend(prepared_items)
             defect_types_num_per_project[launch.project] += sum(
                 1 for item in prepared_items if item.issue_type and not item.issue_type.startswith("ti")
@@ -145,6 +164,7 @@ class IndexService:
         batch_size = self.app_config.esChunkNumber
         found_test_items: set[str] = set()
         history_updates: list[TestItemHistoryData] = []
+        updated_test_items: dict[str, TestItemIndexData] = {}
 
         for i in range(int(len(test_item_ids) / batch_size) + 1):
             batch_ids = test_item_ids[i * batch_size : (i + 1) * batch_size]
@@ -171,9 +191,29 @@ class IndexService:
                         issue_comment=issue_comment,
                     )
                 )
+                updated_history = list(item.issue_history or [])
+                updated_history.append(history_updates[-1])
+                updated_test_items[item.test_item_id] = item.model_copy(
+                    update={
+                        "issue_type": issue_type,
+                        "is_auto_analyzed": False,
+                        "issue_history": updated_history,
+                    },
+                    deep=True,
+                )
 
         if history_updates:
-            self.os_client.bulk_update_issue_history(project_id, history_updates)
+            flaky_scores: dict[str, dict[str, int | bool]] = {}
+            if updated_test_items and self.flaky_detector:
+                self._apply_flaky_scores(list(updated_test_items.values()))
+                flaky_scores = {
+                    item_id: {
+                        "flaky_score": int(test_item.flaky_score or 0),
+                        "is_quarantined": bool(test_item.is_quarantined),
+                    }
+                    for item_id, test_item in updated_test_items.items()
+                }
+            self.os_client.bulk_update_issue_history(project_id, history_updates, flaky_scores)
 
         items_not_updated = [int(test_item_id) for test_item_id in set(test_item_ids) - set(found_test_items)]
         LOGGER.debug("Not updated test items: %s", items_not_updated)

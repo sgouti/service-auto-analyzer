@@ -12,6 +12,14 @@ scikit-learn==1.5.2
 imbalanced-learn==0.12.4
 numpy==1.26.4
 xgboost==1.7.3
+lightgbm==4.6.0
+optuna==4.2.1
+pyod==2.0.5
+fastembed==0.7.1
+onnxruntime==1.22.1
+huggingface-hub==0.36.0
+rank-bm25==0.2.2
+cachetools==5.5.2
 minio==7.2.11
 
 gensim==4.3.3

@@ -125,6 +125,10 @@ def convert_test_item_log(
         cluster_id=log_data.cluster_id or "",
         cluster_message=log_data.cluster_message or "",
         cluster_with_numbers=bool(log_data.cluster_with_numbers),
+        semantic_vector=log_data.semantic_vector,
+        semantic_vector_model=log_data.semantic_vector_model or "",
+        flaky_score=int(test_item.flaky_score or 0),
+        is_quarantined=bool(test_item.is_quarantined),
     )
 
 

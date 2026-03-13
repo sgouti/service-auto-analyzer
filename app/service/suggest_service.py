@@ -38,6 +38,9 @@ from app.commons.model_chooser import ModelChooser
 from app.commons.namespace_finder import NamespaceFinder
 from app.commons.os_client import OsClient
 from app.ml.predictor import PREDICTION_CLASSES, PredictionResult
+from app.ml.hybrid_ranking import HybridRankingPipeline
+from app.ml.pipeline_executor import execute_with_timeout
+from app.ml.runtime_settings import MlRuntimeSettings
 from app.service.analyzer_service import AnalyzerService
 from app.utils import utils
 from app.utils.os_migration import (
@@ -220,6 +223,7 @@ class SuggestService(AnalyzerService):
     os_client: OsClient
     namespace_finder: NamespaceFinder
     model_chooser: ModelChooser
+    runtime_settings: MlRuntimeSettings
 
     def __init__(
         self,
@@ -235,6 +239,7 @@ class SuggestService(AnalyzerService):
         self.os_client = os_client or OsClient(app_config=self.app_config)
         self.suggest_threshold = 0.4
         self.namespace_finder = NamespaceFinder(app_config)
+        self.runtime_settings = MlRuntimeSettings.from_app_config(app_config)
 
     def _get_config_for_boosting_suggests(self, analyzer_config: AnalyzerConf) -> dict:
         return {
@@ -398,7 +403,14 @@ class SuggestService(AnalyzerService):
 
         # Align found logs to request logs using bucket sorting
         buckets = bucket_sort_logs_by_similarity(request_logs, found_log_hits)
-        return build_search_results(request_logs, buckets)
+        search_results = build_search_results(request_logs, buckets)
+        pipeline = HybridRankingPipeline(self.runtime_settings)
+        return execute_with_timeout(
+            search_results,
+            pipeline.rank_hits,
+            timeout_seconds=self.runtime_settings.ml_pipeline_timeout_seconds,
+            enabled=self.runtime_settings.enable_async_ml_pipeline and self.runtime_settings.enable_hybrid_retrieval,
+        )
 
     def _prepare_request_data(self, test_item_info: TestItemInfo) -> tuple[list[LogItemIndexData], int]:
         """Prepare request logs for suggestion search.

@@ -382,19 +382,19 @@ class TestPrepareTestItem:
                 logId=6001,
                 logLevel=40000,
                 logTime=[2025, 1, 20, 10, 0, 0, 0],
-                message="Timeout error while connecting to database",
+                message="Timeout error connecting to database server primary",
             ),
             Log(
                 logId=6002,
                 logLevel=40000,
                 logTime=[2025, 1, 20, 10, 1, 0, 0],
-                message="Timeout error while connecting to database again",
+                message="Timeout error connecting to database replica secondary",
             ),
             Log(
                 logId=6003,
                 logLevel=40000,
                 logTime=[2025, 1, 20, 10, 2, 0, 0],
-                message="Different failure occurred during processing",
+                message="NullPointerException thrown in UserService.getProfile method",
             ),
         ]
         test_item = TestItem(
