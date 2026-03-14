@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Sequence
 
+import psutil
 from rank_bm25 import BM25Okapi
 
 from app.commons.model.db import Hit
 from app.commons.model.log_item_index import LogItemIndexData
 from app.ml.runtime_settings import MlRuntimeSettings, get_runtime_settings
 from app.ml.semantic_runtime import get_semantic_runtime, semantic_tokenize
+
+LOGGER = logging.getLogger("analyzerApp")
+
+CPU_HIGH_THRESHOLD = 90
+CPU_MEDIUM_THRESHOLD = 70
+REDUCED_RERANK_DEPTH = 3
 
 
 def build_ranking_text(log_item: LogItemIndexData) -> str:
@@ -69,13 +77,23 @@ class HybridRankingPipeline:
         fused = reciprocal_rank_fusion((lexical_ranking, dense_ranking), k=self.settings.hybrid_rrf_k)
 
         hybrid_ranking = sorted(range(len(hits)), key=lambda index: fused.get(index, 0.0), reverse=True)
-        candidate_window = hybrid_ranking[: self.settings.reranker_candidate_window]
-        candidate_docs = [documents[index] for index in candidate_window]
-        rerank_scores = self.runtime.rerank_scores(query_text, candidate_docs)
-        rerank_by_index = {
-            candidate_index: rerank_scores[position]
-            for position, candidate_index in enumerate(candidate_window)
-        }
+
+        cpu_pct = psutil.cpu_percent(interval=0.1)
+        if cpu_pct > CPU_HIGH_THRESHOLD:
+            LOGGER.warning("CPU at %.0f%% — bypassing reranker entirely", cpu_pct)
+            candidate_window = hybrid_ranking[: self.settings.reranker_result_window]
+            rerank_by_index = {idx: fused.get(idx, 0.0) for idx in candidate_window}
+        else:
+            depth = REDUCED_RERANK_DEPTH if cpu_pct > CPU_MEDIUM_THRESHOLD else self.settings.reranker_candidate_window
+            if cpu_pct > CPU_MEDIUM_THRESHOLD:
+                LOGGER.info("CPU at %.0f%% — reducing rerank depth to %d", cpu_pct, depth)
+            candidate_window = hybrid_ranking[: depth]
+            candidate_docs = [documents[index] for index in candidate_window]
+            rerank_scores = self.runtime.rerank_scores(query_text, candidate_docs)
+            rerank_by_index = {
+                candidate_index: rerank_scores[position]
+                for position, candidate_index in enumerate(candidate_window)
+            }
 
         ranked_hits: list[RankedHit] = []
         for index, hit in enumerate(hits):

@@ -258,6 +258,7 @@ class AnalysisResult(BaseModel):
     testItem: int
     issueType: str
     relevantItem: int
+    analysisSource: str = ""
 
 
 class ClusterInfo(BaseModel):

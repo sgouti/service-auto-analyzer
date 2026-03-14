@@ -91,7 +91,7 @@ class FlakyTestDetector:
             return {}
 
         matrix = np.asarray([_extract_features(test_item) for test_item in test_items], dtype=np.float32)
-        if len(test_items) < 5:
+        if len(test_items) < 10:
             return self._heuristic_scores(test_items)
 
         try:

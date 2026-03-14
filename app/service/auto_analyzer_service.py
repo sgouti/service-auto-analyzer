@@ -450,6 +450,7 @@ class AutoAnalyzerService(AnalyzerService):
                             testItem=analyzed_test_item_id,
                             issueType=predicted_issue_type,
                             relevantItem=relevant_item,
+                            analysisSource="fast-AA" if self.app_config.analyzerPriority == 1 else "deep-AA",
                         )
                         analyzed_results_for_index.append(
                             SuggestAnalysisResult(

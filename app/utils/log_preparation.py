@@ -76,9 +76,9 @@ def prepare_message_no_params(message: str) -> str:
 
 def prepare_exception_message_and_stacktrace(message: str) -> tuple[str, str]:
     exception_message, stacktrace = text_processing.detect_log_description_and_stacktrace(message)
-    compact_stacktrace = compact_stacktrace(stacktrace)
-    if compact_stacktrace:
-        return exception_message, compact_stacktrace
+    compacted = compact_stacktrace(stacktrace)
+    if compacted:
+        return exception_message, compacted
 
     stacktrace = text_processing.clean_from_brackets(stacktrace)
     stacktrace = text_processing.remove_numbers(stacktrace)
