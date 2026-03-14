@@ -273,6 +273,8 @@ class TestPrepareTestItem:
 
         # Verify whole_message combines exception and stacktrace
         assert log_data.whole_message != ""
+        assert "TestClass.testMethod:123" in log_data.stacktrace
+        assert "Runner.run:456" in log_data.stacktrace
 
     def test_prepare_test_item_to_dict(self):
         """Test that TestItemIndexData can be converted to dict for indexing."""

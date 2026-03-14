@@ -1,4 +1,4 @@
-#  Copyright 2024 EPAM Systems
+#  Copyright 2026 EPAM Systems
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -11,8 +11,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import re
 
 from app.utils import text_processing
+
+
+STACKTRACE_FRAME_PATTERN = re.compile(r"^at\s+(?P<symbol>[^\s(]+)(?:\((?P<location>[^)]*)\))?")
+MAX_STACKTRACE_FRAMES = 3
 
 
 def basic_prepare(message: str) -> str:
@@ -71,9 +76,53 @@ def prepare_message_no_params(message: str) -> str:
 
 def prepare_exception_message_and_stacktrace(message: str) -> tuple[str, str]:
     exception_message, stacktrace = text_processing.detect_log_description_and_stacktrace(message)
+    compact_stacktrace = compact_stacktrace(stacktrace)
+    if compact_stacktrace:
+        return exception_message, compact_stacktrace
+
     stacktrace = text_processing.clean_from_brackets(stacktrace)
     stacktrace = text_processing.remove_numbers(stacktrace)
     return exception_message, stacktrace
+
+
+def compact_stacktrace(stacktrace: str, max_frames: int = MAX_STACKTRACE_FRAMES) -> str:
+    compact_frames = []
+    for raw_line in stacktrace.splitlines():
+        stripped_line = raw_line.strip()
+        if not stripped_line:
+            continue
+
+        formatted_frame = _format_stacktrace_frame(stripped_line)
+        if formatted_frame:
+            compact_frames.append(formatted_frame)
+        elif not compact_frames and stripped_line:
+            compact_frames.append(stripped_line)
+
+        if len(compact_frames) >= max_frames:
+            break
+
+    return "\n".join(compact_frames)
+
+
+def _format_stacktrace_frame(line: str) -> str | None:
+    frame_match = STACKTRACE_FRAME_PATTERN.match(line)
+    if not frame_match:
+        return None
+
+    symbol = frame_match.group("symbol")
+    location = frame_match.group("location") or ""
+
+    normalized_symbol = symbol.replace("/", ".")
+    symbol_parts = [part for part in normalized_symbol.split(".") if part]
+    if len(symbol_parts) >= 2:
+        method_label = ".".join(symbol_parts[-2:])
+    else:
+        method_label = normalized_symbol
+
+    location_parts = [part.strip() for part in location.split(":") if part.strip()]
+    line_number = location_parts[-1] if location_parts and location_parts[-1].isdigit() else ""
+
+    return f"{method_label}:{line_number}" if line_number else method_label
 
 
 def prepare_exception_message_no_params(exception_message: str) -> str:

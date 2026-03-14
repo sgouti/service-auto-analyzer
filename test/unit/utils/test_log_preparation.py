@@ -38,3 +38,23 @@ def test_separators_log_prepare(test_file, expected_file):
     log = read_file("test_res/test_logs", test_file)
     expected_log = read_file("test_res/test_logs", expected_file)
     assert log_preparation.unify_message(log_preparation.basic_prepare(log)) == expected_log.strip()
+
+
+def test_prepare_exception_message_and_stacktrace_keeps_header_and_top_three_frames():
+    message = (
+        "java.lang.NullPointerException: Cannot invoke method get()\n"
+        "\tat com.rp.PaymentService.process(PaymentService.java:142)\n"
+        "\tat com.rp.OrderController.submit(OrderController.java:88)\n"
+        "\tat com.rp.BaseHandler.handle(BaseHandler.java:34)\n"
+        "\tat java.lang.Thread.run(Thread.java:748)\n"
+        "\tat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)"
+    )
+
+    exception_message, stacktrace = log_preparation.prepare_exception_message_and_stacktrace(message)
+
+    assert exception_message == "java.lang.NullPointerException: Cannot invoke method get()"
+    assert stacktrace == (
+        "PaymentService.process:142\n"
+        "OrderController.submit:88\n"
+        "BaseHandler.handle:34"
+    )
