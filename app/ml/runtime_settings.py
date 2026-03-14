@@ -17,11 +17,11 @@ class MlRuntimeSettings:
     enable_flaky_detection: bool = True
     enable_async_ml_pipeline: bool = True
     semantic_model_cache_dir: str = "res/model/runtime"
-    semantic_embedder_model_id: str = "BAAI/bge-m3"
-    semantic_reranker_model_id: str = "BAAI/bge-reranker-base"
-    semantic_embedder_model_path: str = "res/model/runtime/bge-m3"
-    semantic_reranker_model_path: str = "res/model/runtime/bge-reranker-base"
-    semantic_embedder_model_file: str = "onnx/model.onnx"
+    semantic_embedder_model_id: str = "qdrant/bge-small-en-v1.5-onnx-q"
+    semantic_reranker_model_id: str = "Xenova/ms-marco-TinyBERT-L-2-v2"
+    semantic_embedder_model_path: str = "res/model/runtime/bge-small-en-v1.5"
+    semantic_reranker_model_path: str = "res/model/runtime/ms-marco-TinyBERT-L-2-v2"
+    semantic_embedder_model_file: str = "model_optimized.onnx"
     semantic_reranker_model_file: str = "onnx/model.onnx"
     hybrid_rrf_k: int = 60
     hybrid_candidate_pool_size: int = 50
@@ -32,7 +32,7 @@ class MlRuntimeSettings:
     optuna_max_trials: int = 15
     optuna_min_f1_score: float = 0.80
     flaky_quarantine_threshold: int = 75
-    semantic_vector_dimension: int = 1024
+    semantic_vector_dimension: int = 384
 
     @classmethod
     def from_env(cls) -> "MlRuntimeSettings":
@@ -47,13 +47,13 @@ class MlRuntimeSettings:
             enable_flaky_detection=to_bool(os.getenv("AA_ENABLE_FLAKY_DETECTION", "true")),
             enable_async_ml_pipeline=to_bool(os.getenv("AA_ENABLE_ASYNC_PIPELINE", "true")),
             semantic_model_cache_dir=os.getenv("AA_MODEL_CACHE_DIR", "res/model/runtime").strip(),
-            semantic_embedder_model_id=os.getenv("AA_BGE_M3_MODEL_ID", "BAAI/bge-m3").strip(),
-            semantic_reranker_model_id=os.getenv("AA_BGE_RERANKER_MODEL_ID", "BAAI/bge-reranker-base").strip(),
-            semantic_embedder_model_path=os.getenv("AA_BGE_M3_MODEL_PATH", "res/model/runtime/bge-m3").strip(),
+            semantic_embedder_model_id=os.getenv("AA_BGE_M3_MODEL_ID", "qdrant/bge-small-en-v1.5-onnx-q").strip(),
+            semantic_reranker_model_id=os.getenv("AA_BGE_RERANKER_MODEL_ID", "Xenova/ms-marco-TinyBERT-L-2-v2").strip(),
+            semantic_embedder_model_path=os.getenv("AA_BGE_M3_MODEL_PATH", "res/model/runtime/bge-small-en-v1.5").strip(),
             semantic_reranker_model_path=os.getenv(
-                "AA_BGE_RERANKER_MODEL_PATH", "res/model/runtime/bge-reranker-base"
+                "AA_BGE_RERANKER_MODEL_PATH", "res/model/runtime/ms-marco-TinyBERT-L-2-v2"
             ).strip(),
-            semantic_embedder_model_file=os.getenv("AA_BGE_M3_MODEL_FILE", "onnx/model.onnx").strip(),
+            semantic_embedder_model_file=os.getenv("AA_BGE_M3_MODEL_FILE", "model_optimized.onnx").strip(),
             semantic_reranker_model_file=os.getenv("AA_BGE_RERANKER_MODEL_FILE", "onnx/model.onnx").strip(),
             hybrid_rrf_k=int(os.getenv("AA_HYBRID_RRF_K", "60")),
             hybrid_candidate_pool_size=int(os.getenv("AA_HYBRID_CANDIDATE_POOL", "50")),
@@ -64,7 +64,7 @@ class MlRuntimeSettings:
             optuna_max_trials=int(os.getenv("AA_OPTUNA_MAX_TRIALS", "15")),
             optuna_min_f1_score=float(os.getenv("AA_OPTUNA_MIN_F1", "0.80")),
             flaky_quarantine_threshold=int(os.getenv("AA_FLAKY_THRESHOLD", "75")),
-            semantic_vector_dimension=int(os.getenv("AA_SEMANTIC_VECTOR_DIM", "1024")),
+            semantic_vector_dimension=int(os.getenv("AA_SEMANTIC_VECTOR_DIM", "384")),
         )
 
     @classmethod

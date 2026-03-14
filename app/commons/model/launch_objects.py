@@ -93,11 +93,11 @@ class ApplicationConfig(BaseModel):
     enableFlakyDetection: bool = True
     enableAsyncMlPipeline: bool = True
     semanticModelCacheDir: str = "res/model/runtime"
-    semanticEmbedderModelId: str = "BAAI/bge-m3"
-    semanticRerankerModelId: str = "BAAI/bge-reranker-base"
-    semanticEmbedderModelPath: str = "res/model/runtime/bge-m3"
-    semanticRerankerModelPath: str = "res/model/runtime/bge-reranker-base"
-    semanticEmbedderModelFile: str = "onnx/model.onnx"
+    semanticEmbedderModelId: str = "qdrant/bge-small-en-v1.5-onnx-q"
+    semanticRerankerModelId: str = "Xenova/ms-marco-TinyBERT-L-2-v2"
+    semanticEmbedderModelPath: str = "res/model/runtime/bge-small-en-v1.5"
+    semanticRerankerModelPath: str = "res/model/runtime/ms-marco-TinyBERT-L-2-v2"
+    semanticEmbedderModelFile: str = "model_optimized.onnx"
     semanticRerankerModelFile: str = "onnx/model.onnx"
     hybridRrfK: int = 60
     hybridCandidatePoolSize: int = 50
@@ -108,7 +108,7 @@ class ApplicationConfig(BaseModel):
     optunaMaxTrials: int = 15
     optunaMinF1Score: float = 0.80
     flakyQuarantineThreshold: int = 75
-    semanticVectorDimension: int = 1024
+    semanticVectorDimension: int = 384
 
     datastoreEndpoint: str | None = None
     datastoreType: str = "filesystem"
