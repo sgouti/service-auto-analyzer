@@ -68,6 +68,12 @@ class ApplicationConfig(BaseModel):
     analyzerLogSearch: bool = True
     analyzerSuggest: bool = True
     analyzerCluster: bool = True
+    semanticModelsEnabled: bool = True
+    semanticEmbeddingModel: str = "sentence-transformers/all-MiniLM-L6-v2"
+    semanticAllowModelDownload: bool = False
+    semanticCacheDir: str | None = None
+    semanticMinClusterSize: int = 2
+    semanticRrfK: int = 60
     turnOffSslVerification: bool = False
     appVersion: str = ""
 

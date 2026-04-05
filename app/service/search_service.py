@@ -20,6 +20,7 @@ import opensearchpy.helpers
 from app.commons import log_merger, logging, request_factory, similarity_calculator
 from app.commons.esclient import EsClient
 from app.commons.model.launch_objects import ApplicationConfig, Log, SearchConfig, SearchLogInfo, SearchLogs
+from app.ml.semantic_stack import get_semantic_models
 from app.utils import text_processing, utils
 
 LOGGER = logging.getLogger("analyzerApp.searchService")
@@ -163,6 +164,36 @@ class SearchService:
                 final_results.append(search_result_object)
         return final_results
 
+    def _candidate_text(self, hit: dict) -> str:
+        source = hit.get("_source", {})
+        fields = [
+            source.get("detected_message", ""),
+            source.get("message", ""),
+            source.get("stacktrace", ""),
+            source.get("found_exceptions", ""),
+        ]
+        return " ".join(field for field in fields if field).strip()
+
+    def _query_text(self, queried_log: dict) -> str:
+        source = queried_log.get("_source", {})
+        fields = [
+            source.get("detected_message", ""),
+            source.get("message", ""),
+            source.get("stacktrace", ""),
+            source.get("found_exceptions", ""),
+        ]
+        return " ".join(field for field in fields if field).strip()
+
+    def _build_hybrid_scores(self, queried_log: dict, hits: list[dict]) -> dict[str, float]:
+        semantic_models = get_semantic_models()
+        if semantic_models is None or not hits:
+            return {}
+
+        query_text = self._query_text(queried_log)
+        candidate_texts = [self._candidate_text(hit) for hit in hits]
+        ranked_results = semantic_models.hybrid_rank(query_text, candidate_texts)
+        return {str(hits[result.index]["_id"]): round(result.score, 2) for result in ranked_results}
+
     def _filter_test_items_to_have_all_messages_match(
         self, similar_log_ids: dict, test_items_found_dict: dict, messages_length: int
     ) -> dict:
@@ -243,6 +274,7 @@ class SearchService:
             search_results = self._search_similar_items_for_log(
                 search_req, queried_log, search_min_should_match, test_item_info, index_name
             )
+            hybrid_scores = self._build_hybrid_scores(queried_log, search_results["hits"]["hits"])
 
             _similarity_calculator = similarity_calculator.SimilarityCalculator()
             sim_dict = _similarity_calculator.find_similarity(
@@ -273,9 +305,10 @@ class SearchService:
                     log_id_extracted = utils.extract_real_id(log_id)
                     is_merged = log_id != str(log_id_extracted)
                     test_item_id = int(test_item_info[log_id])
-                    match_score = max(round(similarity_percent, 2), round(global_search_min_should_match, 2))
+                    legacy_score = max(round(similarity_percent, 2), round(global_search_min_should_match, 2)) * 100
+                    match_score = hybrid_scores.get(str(log_id), round(legacy_score, 2))
                     similar_log_ids[(log_id_extracted, test_item_id, is_merged)] = SearchLogInfo(
-                        logId=log_id_extracted, testItemId=test_item_id, matchScore=match_score * 100
+                        logId=log_id_extracted, testItemId=test_item_id, matchScore=match_score
                     )
                     if test_item_id not in test_items_found_dict:
                         test_items_found_dict[test_item_id] = 0
@@ -284,7 +317,11 @@ class SearchService:
             similar_log_ids = self._filter_test_items_to_have_all_messages_match(
                 similar_log_ids, test_items_found_dict, len(logs_to_query)
             )
-        final_results = self._prepare_final_search_results(similar_log_ids, index_name)
+        final_results = sorted(
+            self._prepare_final_search_results(similar_log_ids, index_name),
+            key=lambda item: item.matchScore,
+            reverse=True,
+        )
 
         LOGGER.info(
             "Finished searching by request %s with %d results. It took %.2f sec.",

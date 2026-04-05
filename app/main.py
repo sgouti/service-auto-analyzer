@@ -206,6 +206,12 @@ APP_CONFIG = ApplicationConfig(
     analyzerLogSearch=to_bool(os.getenv("ANALYZER_LOG_SEARCH", "true")),
     analyzerSuggest=to_bool(os.getenv("ANALYZER_SUGGEST", "true")),
     analyzerCluster=to_bool(os.getenv("ANALYZER_CLUSTER", "true")),
+    semanticModelsEnabled=to_bool(os.getenv("RP_SEMANTIC_MODELS_ENABLED", "true")),
+    semanticEmbeddingModel=os.getenv("RP_SEMANTIC_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2").strip(),
+    semanticAllowModelDownload=to_bool(os.getenv("RP_SEMANTIC_ALLOW_MODEL_DOWNLOAD", "true")),
+    semanticCacheDir=os.getenv("RP_SEMANTIC_CACHE_DIR", "").strip() or None,
+    semanticMinClusterSize=int(os.getenv("RP_SEMANTIC_MIN_CLUSTER_SIZE", "2")),
+    semanticRrfK=int(os.getenv("RP_SEMANTIC_RRF_K", "60")),
     appVersion="",
     # Storage settings
     datastoreType=datastore_type,

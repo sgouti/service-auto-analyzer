@@ -21,12 +21,34 @@ import sklearn
 from sklearn.feature_extraction.text import CountVectorizer
 
 from app.commons import logging
+from app.ml.semantic_stack import get_semantic_models
 from app.utils import text_processing, utils
 
 LOGGER = logging.getLogger("analyzerApp.clusterizer")
 
 
 class Clusterizer:
+
+    def _find_clusters_semantically(self, messages: list[str]) -> dict[int, list[int]] | None:
+        semantic_models = get_semantic_models()
+        if semantic_models is None or len(messages) < 2:
+            return None
+
+        labels = semantic_models.cluster_texts(messages)
+        if labels.size == 0:
+            return None
+
+        groups = {}
+        next_group_id = max((int(label) for label in labels if int(label) >= 0), default=-1) + 1
+        for idx, label in enumerate(labels.tolist()):
+            group_id = int(label)
+            if group_id < 0:
+                group_id = next_group_id
+                next_group_id += 1
+            if group_id not in groups:
+                groups[group_id] = []
+            groups[group_id].append(idx)
+        return groups
 
     def calculate_hashes(self, messages: list[str], n_gram: int = 2, n_permutations: int = 64) -> list[list[str]]:
         hashes = []
@@ -150,8 +172,10 @@ class Clusterizer:
 
     def find_clusters(self, messages: list[str], threshold: float = 0.95) -> dict[int, list[int]]:
         messages_to_cluster, ids_with_duplicates = self.perform_light_deduplication(messages)
-        hash_groups = self.unite_groups_by_hashes(messages_to_cluster, threshold=threshold)
-        groups = self.find_groups_by_similarity(messages_to_cluster, hash_groups, threshold=threshold)
+        groups = self._find_clusters_semantically(messages_to_cluster)
+        if groups is None:
+            hash_groups = self.unite_groups_by_hashes(messages_to_cluster, threshold=threshold)
+            groups = self.find_groups_by_similarity(messages_to_cluster, hash_groups, threshold=threshold)
         new_groups = {}
         for cluster in groups:
             new_log_ids = []
